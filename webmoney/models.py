@@ -40,9 +40,8 @@ class Invoice(models.Model):
 
     is_payed = property(_is_payed_admin)
 
-    @transaction.commit_manually
+    @transaction.atomic
     def save(self, force_insert=False, force_update=False, using=None):
-        sid = transaction.savepoint()
         if self.pk is None:
             i = 1
             while self.pk is None:
@@ -57,27 +56,21 @@ class Invoice(models.Model):
                         'unique Invoice number.'
                     )
 
-                try:
-                    self.created_on = datetime.utcnow()
-                    self.created_on = self.created_on - timedelta(
-                        microseconds=self.created_on.microsecond % 100)
+                self.created_on = datetime.utcnow()
+                self.created_on = self.created_on - timedelta(
+                    microseconds=self.created_on.microsecond % 100)
 
-                    self.payment_no = (
-                                          self.created_on.hour * 3600 +
-                                          self.created_on.minute * 60 +
-                                          self.created_on.second) * 10000 + (
-                                          self.created_on.microsecond // 100)
-                    super(Invoice, self).save(force_insert, force_update)
+                self.payment_no = (
+                    self.created_on.hour * 3600 +
+                    self.created_on.minute * 60 +
+                    self.created_on.second) * 10000 + (
+                    self.created_on.microsecond // 100)
+                super(Invoice, self).save(force_insert, force_update)
 
-                except IntegrityError:
-                    transaction.savepoint_rollback(sid)
 
                 i += 1
         else:
             super(Invoice, self).save(force_insert, force_update)
-
-        transaction.savepoint_commit(sid)
-        transaction.commit()
 
     def __unicode__(self):
         return '%s/%s (for: %s)' % (
